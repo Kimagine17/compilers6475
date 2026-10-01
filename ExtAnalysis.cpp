@@ -57,11 +57,100 @@ ExtAnalysis::visitOperation(Operation *op,
       k = Kind::One;
     else
       k = Kind::Pos;
-    propagateIfChanged(result, result->join(ExtState(k)));
+    ExtState constant(k);
+    if (auto intType = dyn_cast<IntegerType>(op->getResult(0).getType());
+        intType && intType.getWidth() == 1 && intValue.getBitWidth() == 1) {
+      constant.boolKind =
+          intValue.isZero() ? BoolKind::False : BoolKind::True;
+    }
+    propagateIfChanged(result, result->join(constant));
     return success();
     // ExtState state = value.getValue().isZero() ? Kind::Zero : Kind::NonZero;
     // propagateIfChanged(result, result->join(state));
     // return success();
+  }
+
+  // Signed greater-than uses integer signs as input facts and produces a
+  // separate boolean fact. The i1 integer component records false as zero and
+  // true as negative, matching signed interpretation of LLVM i1 values.
+  if (auto cmp = dyn_cast<LLVM::ICmpOp>(op)) {
+    if (cmp.getPredicate() != LLVM::ICmpPredicate::sgt)
+      return unknown();
+
+    ExtState lhs = operands[0]->getValue();
+    ExtState rhs = operands[1]->getValue();
+    if (lhs.isBottom() || rhs.isBottom())
+      return success();
+
+    bool known = true;
+    bool isTrue = false;
+    switch (lhs.kind) {
+    case Kind::Neg:
+      if (rhs.kind == Kind::Zero || rhs.kind == Kind::One ||
+          rhs.kind == Kind::Pos || rhs.kind == Kind::NonNeg) {
+        isTrue = false;
+      } else {
+        known = false;
+      }
+      break;
+    case Kind::Zero:
+      if (rhs.kind == Kind::Neg) {
+        isTrue = true;
+      } else if (rhs.kind == Kind::Zero || rhs.kind == Kind::One ||
+                 rhs.kind == Kind::Pos || rhs.kind == Kind::NonNeg) {
+        isTrue = false;
+      } else {
+        known = false;
+      }
+      break;
+    case Kind::One:
+      if (rhs.kind == Kind::Neg || rhs.kind == Kind::Zero ||
+          rhs.kind == Kind::NonPos) {
+        isTrue = true;
+      } else if (rhs.kind == Kind::One || rhs.kind == Kind::Pos) {
+        isTrue = false;
+      } else {
+        known = false;
+      }
+      break;
+    case Kind::Pos:
+      if (rhs.kind == Kind::Neg || rhs.kind == Kind::Zero ||
+          rhs.kind == Kind::NonPos) {
+        isTrue = true;
+      } else {
+        known = false;
+      }
+      break;
+    case Kind::NonNeg:
+      if (rhs.kind == Kind::Neg) {
+        isTrue = true;
+      } else {
+        known = false;
+      }
+      break;
+    case Kind::NonPos:
+      if (rhs.kind == Kind::Zero || rhs.kind == Kind::One ||
+          rhs.kind == Kind::Pos || rhs.kind == Kind::NonNeg) {
+        isTrue = false;
+      } else {
+        known = false;
+      }
+      break;
+    case Kind::Bottom:
+    case Kind::Top:
+      known = false;
+      break;
+    }
+
+    if (!known) {
+      propagateIfChanged(result, result->join(ExtState::top()));
+      return success();
+    }
+
+    ExtState comparison(isTrue ? Kind::Neg : Kind::Zero,
+                        isTrue ? BoolKind::True : BoolKind::False);
+    propagateIfChanged(result, result->join(comparison));
+    return success();
   }
 
   // Rule 2: `x + y` 

@@ -27,6 +27,7 @@
 namespace ext {
 
 enum class Kind { Bottom, Neg, Zero, One, Pos, NonNeg, NonPos, Top };
+enum class BoolKind { Bottom, False, True, Top };
 
 inline const char *name(Kind kind) {
   switch (kind) {
@@ -50,53 +51,94 @@ inline const char *name(Kind kind) {
   return "top";
 }
 
+inline const char *name(BoolKind kind) {
+  switch (kind) {
+  case BoolKind::Bottom:
+    return "bottom";
+  case BoolKind::False:
+    return "false";
+  case BoolKind::True:
+    return "true";
+  case BoolKind::Top:
+    return "top";
+  }
+  return "top";
+}
+
 struct ZeroState {
   Kind kind = Kind::Bottom;
+  BoolKind boolKind = BoolKind::Bottom;
 
   ZeroState() = default;
-  /* implicit */ ZeroState(Kind kind) : kind(kind) {}
+  /* implicit */ ZeroState(Kind kind, BoolKind boolKind = BoolKind::Bottom)
+      : kind(kind), boolKind(boolKind) {}
 
-  static ZeroState bottom() { return Kind::Bottom; }
-  static ZeroState top() { return Kind::Top; }
+  static ZeroState bottom() { return ZeroState(); }
+  static ZeroState top() { return ZeroState(Kind::Top, BoolKind::Top); }
+  static ZeroState boolean(BoolKind kind) {
+    return ZeroState(Kind::Bottom, kind);
+  }
 
-  bool isBottom() const { return kind == Kind::Bottom; }
+  bool isBottom() const {
+    return kind == Kind::Bottom && boolKind == BoolKind::Bottom;
+  }
 
-  /// Least upper bound in the extended sign lattice.
+  /// Least upper bound in the product of the integer and boolean lattices.
   static ZeroState join(const ZeroState &lhs, const ZeroState &rhs) {
-    if (lhs.kind == Kind::Bottom)
-      return rhs;
-    if (rhs.kind == Kind::Bottom)
-      return lhs;
-    if (lhs.kind == rhs.kind)
-      return lhs;
-    if (lhs.kind == Kind::Top || rhs.kind == Kind::Top)
-      return top();
+    return ZeroState(joinInt(lhs.kind, rhs.kind),
+                     joinBool(lhs.boolKind, rhs.boolKind));
+  }
 
-    if ((lhs.kind == Kind::One && rhs.kind == Kind::Pos) ||
-        (lhs.kind == Kind::Pos && rhs.kind == Kind::One))
+  bool operator==(const ZeroState &other) const {
+    return kind == other.kind && boolKind == other.boolKind;
+  }
+  bool operator!=(const ZeroState &other) const { return !(*this == other); }
+
+  void print(llvm::raw_ostream &os) const {
+    os << name(kind) << "/" << name(boolKind);
+  }
+
+private:
+  static Kind joinInt(Kind lhs, Kind rhs) {
+    if (lhs == Kind::Bottom)
+      return rhs;
+    if (rhs == Kind::Bottom)
+      return lhs;
+    if (lhs == rhs)
+      return lhs;
+    if (lhs == Kind::Top || rhs == Kind::Top)
+      return Kind::Top;
+
+    if ((lhs == Kind::One && rhs == Kind::Pos) ||
+        (lhs == Kind::Pos && rhs == Kind::One))
       return Kind::Pos;
 
-    const bool lhsNonPos = lhs.kind == Kind::Neg || lhs.kind == Kind::Zero ||
-                           lhs.kind == Kind::NonPos;
-    const bool rhsNonPos = rhs.kind == Kind::Neg || rhs.kind == Kind::Zero ||
-                           rhs.kind == Kind::NonPos;
+    const bool lhsNonPos =
+        lhs == Kind::Neg || lhs == Kind::Zero || lhs == Kind::NonPos;
+    const bool rhsNonPos =
+        rhs == Kind::Neg || rhs == Kind::Zero || rhs == Kind::NonPos;
     if (lhsNonPos && rhsNonPos)
       return Kind::NonPos;
 
-    const bool lhsNonNeg = lhs.kind == Kind::Zero || lhs.kind == Kind::One ||
-                           lhs.kind == Kind::Pos || lhs.kind == Kind::NonNeg;
-    const bool rhsNonNeg = rhs.kind == Kind::Zero || rhs.kind == Kind::One ||
-                           rhs.kind == Kind::Pos || rhs.kind == Kind::NonNeg;
+    const bool lhsNonNeg = lhs == Kind::Zero || lhs == Kind::One ||
+                           lhs == Kind::Pos || lhs == Kind::NonNeg;
+    const bool rhsNonNeg = rhs == Kind::Zero || rhs == Kind::One ||
+                           rhs == Kind::Pos || rhs == Kind::NonNeg;
     if (lhsNonNeg && rhsNonNeg)
       return Kind::NonNeg;
 
-    return top();
+    return Kind::Top;
   }
 
-  bool operator==(const ZeroState &other) const { return kind == other.kind; }
-  bool operator!=(const ZeroState &other) const { return kind != other.kind; }
-
-  void print(llvm::raw_ostream &os) const { os << name(kind); }
+  static BoolKind joinBool(BoolKind lhs, BoolKind rhs) {
+    if (lhs == BoolKind::Bottom)
+      return rhs;
+    if (rhs == BoolKind::Bottom)
+      return lhs;
+    if (lhs == rhs)
+      return lhs;
+    return BoolKind::Top;
+  }
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,

@@ -104,13 +104,21 @@ struct ExtAnalysisPass
       const auto *lattice = solver.lookupState<ext::ExtLattice>(value);
       if (!lattice)
         return {};
-      ext::Kind kind = lattice->getValue().kind;
-      if (kind == ext::Kind::Top || kind == ext::Kind::Bottom)
+      const ext::ExtState &state = lattice->getValue();
+      const char *fact = nullptr;
+      if (state.boolKind == ext::BoolKind::False ||
+          state.boolKind == ext::BoolKind::True) {
+        fact = ext::name(state.boolKind);
+      } else if (state.kind != ext::Kind::Top &&
+                 state.kind != ext::Kind::Bottom) {
+        fact = ext::name(state.kind);
+      }
+      if (!fact)
         return {};
       std::string description;
       llvm::raw_string_ostream os(description);
       value.printAsOperand(os, asmState);
-      os << " is " << ext::name(kind);
+      os << " is " << fact;
       return description;
     };
 
