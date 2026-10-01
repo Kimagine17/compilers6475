@@ -96,11 +96,13 @@ add_definitions(${LLVM_DEFINITIONS})
 # duplicate every cl::opt and dialect registry, which fails at load time.
 #
 # The resulting file is ZeroAnalysis.dylib on macOS and ZeroAnalysis.so on
-# Linux and WSL2.  Nothing in this project should spell that suffix out;
-# ask CMake via $<TARGET_FILE:ZeroAnalysis>, or let run.sh probe for it.
+# Linux and WSL2.  It contains both the zero-analysis and ext-analysis passes.
+# Nothing in this project should spell that suffix out; ask CMake via
+# $<TARGET_FILE:ZeroAnalysis>, or let run.sh probe for it.
 #===----------------------------------------------------------------------===#
 add_llvm_library(ZeroAnalysis MODULE PARTIAL_SOURCES_INTENDED
   ZeroAnalysis.cpp
+  ExtAnalysis.cpp
   Annotate.cpp
   Plugin.cpp
   PLUGIN_TOOL mlir-opt
@@ -133,13 +135,22 @@ if(MLIR_OPT_EXECUTABLE)
   endif()
 
   enable_testing()
-  add_test(NAME zero-analysis
-    COMMAND ${CMAKE_COMMAND}
-      -DMLIR_OPT=${MLIR_OPT_EXECUTABLE}
-      -DPLUGIN=$<TARGET_FILE:ZeroAnalysis>
-      -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/zero.mlir
-      -DCHECKS=${CMAKE_CURRENT_SOURCE_DIR}/test/zero.expected
-      -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunTest.cmake)
+  function(add_analysis_test test_name fixture_name pass)
+    add_test(NAME ${test_name}
+      COMMAND ${CMAKE_COMMAND}
+        -DMLIR_OPT=${MLIR_OPT_EXECUTABLE}
+        -DPLUGIN=$<TARGET_FILE:ZeroAnalysis>
+        -DPASS=${pass}
+        -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/test/${fixture_name}.mlir
+        -DCHECKS=${CMAKE_CURRENT_SOURCE_DIR}/test/${fixture_name}.expected
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunTest.cmake)
+  endfunction()
+
+  add_analysis_test(zero-analysis zero zero-analysis)
+  add_analysis_test(add add ext-analysis)
+  add_analysis_test(sub sub ext-analysis)
+  add_analysis_test(mult mult ext-analysis)
+  add_analysis_test(div div ext-analysis)
 else()
   message(STATUS "mlir-opt not found; skipping tests")
 endif()

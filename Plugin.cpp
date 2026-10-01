@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotate.h"
+#include "ExtAnalysis.h"
 #include "ZeroAnalysis.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
@@ -74,11 +75,58 @@ struct ZeroAnalysisPass
   }
 };
 
+struct ExtAnalysisPass
+    : PassWrapper<ExtAnalysisPass, OperationPass<ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ExtAnalysisPass)
+
+  StringRef getArgument() const final { return "ext-analysis"; }
+
+  StringRef getDescription() const final {
+    return "Determine the extended sign of integer values";
+  }
+
+  void runOnOperation() override {
+    DataFlowConfig config;
+    config.setInterprocedural(false);
+
+    DataFlowSolver solver(config);
+    solver.load<dataflow::DeadCodeAnalysis>();
+    solver.load<dataflow::SparseConstantPropagation>();
+    solver.load<ext::ExtAnalysis>();
+
+    if (failed(solver.initializeAndRun(getOperation()))) {
+      getOperation().emitError(
+          "extended sign analysis failed to reach a fixed point");
+      return signalPassFailure();
+    }
+
+    auto describe = [&](Value value, AsmState &asmState) -> std::string {
+      const auto *lattice = solver.lookupState<ext::ExtLattice>(value);
+      if (!lattice)
+        return {};
+      ext::Kind kind = lattice->getValue().kind;
+      if (kind == ext::Kind::Top || kind == ext::Kind::Bottom)
+        return {};
+      std::string description;
+      llvm::raw_string_ostream os(description);
+      value.printAsOperand(os, asmState);
+      os << " is " << ext::name(kind);
+      return description;
+    };
+
+    zero::printAnnotated(getOperation(), describe, llvm::errs());
+    markAllAnalysesPreserved();
+  }
+};
+
 } // namespace
 
 extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo mlirGetPassPluginInfo() {
   // LLVM_VERSION_STRING is baked in at compile time and checked by mlir-opt at
   // load time, which is what turns an ABI mismatch into a clear diagnostic.
   return {MLIR_PLUGIN_API_VERSION, "ZeroAnalysis", LLVM_VERSION_STRING,
-          []() { PassRegistration<ZeroAnalysisPass>(); }};
+          []() {
+            PassRegistration<ZeroAnalysisPass>();
+            PassRegistration<ExtAnalysisPass>();
+          }};
 }

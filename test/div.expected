@@ -1,0 +1,61 @@
+# Signed-division result for every ordered pair of sign classes, in matrix order:
+# neg, zero, one, pos, nonneg, nonpos, top.
+# The setup also verifies the derived nonpos and nonneg boundary values.
+%4 is nonpos
+%5 is nonneg
+
+%6 is nonneg
+!%7 is
+%8 is neg
+%9 is nonpos
+!%10 is
+!%11 is
+!%12 is
+
+%13 is zero
+!%14 is
+%15 is zero
+%16 is zero
+!%17 is
+!%18 is
+!%19 is
+
+%20 is neg
+!%21 is
+%22 is one
+%23 is nonneg
+!%24 is
+!%25 is
+!%26 is
+
+%27 is nonpos
+!%28 is
+%29 is pos
+%30 is nonneg
+!%31 is
+!%32 is
+!%33 is
+
+%34 is nonpos
+!%35 is
+%36 is nonneg
+%37 is nonneg
+!%38 is
+!%39 is
+!%40 is
+
+%41 is nonneg
+!%42 is
+%43 is nonpos
+%44 is nonpos
+!%45 is
+!%46 is
+!%47 is
+
+!%48 is
+!%49 is
+!%50 is
+!%51 is
+!%52 is
+!%53 is
+!%54 is

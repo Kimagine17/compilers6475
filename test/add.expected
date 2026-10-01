@@ -1,0 +1,61 @@
+# Addition result for every ordered pair of sign classes, in matrix order:
+# neg, zero, one, pos, nonneg, nonpos, top.
+# The setup also verifies the derived nonpos and nonneg boundary values.
+%4 is nonpos
+%5 is nonneg
+
+%6 is neg
+%7 is neg
+%8 is nonpos
+!%9 is
+!%10 is
+%11 is neg
+!%12 is
+
+%13 is neg
+%14 is zero
+%15 is one
+%16 is pos
+%17 is nonneg
+%18 is nonpos
+!%19 is
+
+%20 is nonpos
+%21 is one
+%22 is pos
+%23 is pos
+%24 is pos
+!%25 is
+!%26 is
+
+!%27 is
+%28 is pos
+%29 is pos
+%30 is pos
+%31 is pos
+!%32 is
+!%33 is
+
+!%34 is
+%35 is nonneg
+%36 is pos
+%37 is pos
+%38 is nonneg
+!%39 is
+!%40 is
+
+%41 is neg
+%42 is nonpos
+!%43 is
+!%44 is
+!%45 is
+%46 is nonpos
+!%47 is
+
+!%48 is
+!%49 is
+!%50 is
+!%51 is
+!%52 is
+!%53 is
+!%54 is

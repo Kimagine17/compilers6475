@@ -1,0 +1,61 @@
+# Multiplication result for every ordered pair of sign classes, in matrix order:
+# neg, zero, one, pos, nonneg, nonpos, top.
+# The setup also verifies the derived nonpos and nonneg boundary values.
+%4 is nonpos
+%5 is nonneg
+
+%6 is pos
+%7 is zero
+%8 is neg
+%9 is neg
+%10 is nonpos
+%11 is nonneg
+!%12 is
+
+%13 is zero
+%14 is zero
+%15 is zero
+%16 is zero
+%17 is zero
+%18 is zero
+!%19 is
+
+%20 is neg
+%21 is zero
+%22 is pos
+%23 is pos
+%24 is nonneg
+%25 is nonpos
+!%26 is
+
+%27 is neg
+%28 is zero
+%29 is pos
+%30 is pos
+%31 is nonneg
+%32 is nonpos
+!%33 is
+
+%34 is nonpos
+%35 is zero
+%36 is nonneg
+%37 is nonneg
+%38 is nonneg
+%39 is nonpos
+!%40 is
+
+%41 is nonneg
+%42 is zero
+%43 is nonpos
+%44 is nonpos
+%45 is nonpos
+%46 is nonneg
+!%47 is
+
+!%48 is
+!%49 is
+!%50 is
+!%51 is
+!%52 is
+!%53 is
+!%54 is

@@ -12,10 +12,14 @@ foreach(required MLIR_OPT PLUGIN INPUT CHECKS)
   endif()
 endforeach()
 
+if(NOT DEFINED PASS)
+  set(PASS zero-analysis)
+endif()
+
 execute_process(
   COMMAND "${MLIR_OPT}"
           "--load-pass-plugin=${PLUGIN}"
-          "--pass-pipeline=builtin.module(zero-analysis)"
+          "--pass-pipeline=builtin.module(${PASS})"
           "${INPUT}"
   OUTPUT_VARIABLE ignored_ir   # mlir-opt writes the unchanged IR to stdout
   ERROR_VARIABLE annotated
@@ -58,4 +62,4 @@ if(NOT failures STREQUAL "")
     "--- actual ---\n${annotated}")
 endif()
 
-message(STATUS "zero-analysis: all expected facts present")
+message(STATUS "${PASS}: all expected facts present")
