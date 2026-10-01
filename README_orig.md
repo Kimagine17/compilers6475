@@ -1,19 +1,12 @@
 # MLIR out-of-tree dataflow analysis template
 
-This completes the extended sign analysis. Additional, it does some basic analysis of comparisions, such that + > - will be true. 
+A starting point for writing an MLIR dataflow analysis as a loadable `mlir-opt`
+plugin, with no LLVM source tree required and nothing to patch upstream.
 
-I ran my mlir passes on various files from the llvm project, such as /llvm/examples/Fibonacci/fibonacci.cpp, and some oher random c files like https://github.com/spc476/mc6809/blob/master/mc09disasm.c
+The included analysis, `zero-analysis`, decides which integer values in the LLVM
+dialect are known to be zero. It has exactly two transfer rules and is meant to
+be replaced: the point is the scaffolding around it.
 
-While the sign analysis was able to interact with non-constant values (espeically noticable for arguments, for instance in the mc09disasm.c, argument: %69 is nonneg), the boolean analysis for sign comparisions was not very helpful. The only expressions I could find being marked in wild c code were constants, at which point it's trivial to know that false is false. Looking back this makes sense. I can't think of very many instances where you would need a control flow that could be statically determined to be always true or false without it being optimized out by the programmer themself. However, I am still intruiged to see if I can find a case of this happening. Chat recommended looking for files that have loop carried values. I added more test files that use a wider range of both the sign and comparision analysis files. 
-Example of the booleans being trivial: 
-    %1 = llvm.mlir.constant(false) : i1 // %1 is false
-    %0 = llvm.mlir.constant(false) : i1 // %0 is false
-    %3 = llvm.mlir.constant(false) : i1 // %3 is false
-    %1 = llvm.mlir.constant(true) : i1 // %1 is true
-    %7 = llvm.mlir.constant(true) : i1 // %7 is true
-    %1 = llvm.mlir.constant(true) : i1 // %1 is true
-    %2 = llvm.mlir.constant(true) : i1 // %2 is true
-    %3 = llvm.mlir.constant(true) : i1 // %3 is true
 ## Building
 
 ```sh
@@ -22,10 +15,6 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-## Testing individual files
-'''sh
-./analyze-c.sh <input_file.c>
-'''
 That is the whole procedure on Linux, macOS, and WSL2. There is no platform
 flag to set and no path to edit. `CMakeLists.txt` finds MLIR by asking
 whichever `llvm-config` is on your `PATH` where its CMake package lives, so if
@@ -73,26 +62,18 @@ Get input in the LLVM dialect from C with:
 clang -S -emit-llvm -o - input.c | mlir-translate --import-llvm
 ```
 
-To run the analysis plugin directly on a C or C++ file, use `analyze-c.sh`. It
-runs Clang at `-O0`, promotes stack locals to SSA with LLVM `opt`'s `mem2reg`,
-imports the result as LLVM-dialect MLIR, and runs `ext-analysis`:
+To run the analysis plugin directly on a C file, use `analyze-c.sh`. It runs
+Clang at `-O0`, promotes stack locals to SSA with LLVM `opt`'s `mem2reg`, imports
+the result as LLVM-dialect MLIR, and runs `ext-analysis`:
 
 ```sh
 ./analyze-c.sh input.c
-./analyze-c.sh input.cpp -- -I/path/to/include -DPROJECT_OPTION=1
 ```
-
-The script does not ignore `#include` directives: included declarations and
-headers are needed to compile the source correctly. Pass the compile options
-after `--`. For LLVM/MLIR source files, use the include paths and defines from
-the matching LLVM build's `compile_commands.json`; generated headers may
-require paths under both the source tree and build tree.
 
 The script uses the plugin in `build/ZeroAnalysis.so` (or `.dylib` on macOS).
 Set `LLVM_BIN` to the directory containing the matching `opt`, `mlir-opt`, and
 `mlir-translate` tools if they are not on `PATH`. Individual tool paths can be
-overridden with `CLANG` (C), `CLANGXX` (C++), `LLVM_OPT`, `MLIR_OPT`, and
-`MLIR_TRANSLATE`.
+overridden with `CLANG`, `LLVM_OPT`, `MLIR_OPT`, and `MLIR_TRANSLATE`.
 `ANALYSIS_PASSES` can override the default `ext-analysis` pass list (for
 example, set it to `zero-analysis,ext-analysis` to run both passes). `PLUGIN`
 or `BUILD_DIR` can select a different plugin location.
