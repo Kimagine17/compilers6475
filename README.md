@@ -6,7 +6,7 @@ I ran my mlir passes on various files from the llvm project, such as /llvm/examp
 
 While the sign analysis was able to interact with non-constant values (espeically noticable for arguments, for instance in the mc09disasm.c, argument: %69 is nonneg), the boolean analysis for sign comparisions was not very helpful. The only expressions I could find being marked in wild c code were constants, at which point it's trivial to know that false is false. Looking back this makes sense. I can't think of very many instances where you would need a control flow that could be statically determined to be always true or false without it being optimized out by the programmer themself. However, I am still intruiged to see if I can find a case of this happening. Chat recommended looking for files that have loop carried values. I added more test files that use a wider range of both the sign and comparision analysis files. 
 Example of the booleans being trivial: 
-'''sh
+```mlir
     %1 = llvm.mlir.constant(false) : i1 // %1 is false
     %0 = llvm.mlir.constant(false) : i1 // %0 is false
     %3 = llvm.mlir.constant(false) : i1 // %3 is false
@@ -15,14 +15,14 @@ Example of the booleans being trivial:
     %1 = llvm.mlir.constant(true) : i1 // %1 is true
     %2 = llvm.mlir.constant(true) : i1 // %2 is true
     %3 = llvm.mlir.constant(true) : i1 // %3 is true
-'''
+```
 ## Building
 
-'''sh
+```sh
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
-'''
+```
 
 ## Testing individual files
 '''sh
