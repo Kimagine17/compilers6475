@@ -16,6 +16,16 @@ Example of the booleans being trivial:
     %2 = llvm.mlir.constant(true) : i1 // %2 is true
     %3 = llvm.mlir.constant(true) : i1 // %3 is true
 ```
+
+Inputkilo.c, from https://github.com/antirez/kilo/blob/master/kilo.c, has instances of guarenteed positive, zero, and 0- values:
+```mlir
+ %43 = llvm.mul %15, %3 : i32 // %43 is nonneg
+    %45 = llvm.mul %0, %4 : i32 // %45 is zero
+    // argument: %51 is nonneg
+    // argument: %52 is nonneg
+    %65 = llvm.add %52, %2 overflow<nsw> : i32 // %65 is pos
+    // argument: %68 is pos
+```
 ## Building
 
 ```sh
