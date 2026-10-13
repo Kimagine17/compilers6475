@@ -109,6 +109,18 @@ overridden with `CLANG` (C), `CLANGXX` (C++), `LLVM_OPT`, `MLIR_OPT`, and
 example, set it to `zero-analysis,ext-analysis` to run both passes). `PLUGIN`
 or `BUILD_DIR` can select a different plugin location.
 
+To instrument a C program with the assertions emitted by `ext-analysis`, then
+lower, compile, and run it:
+
+```sh
+./run_instrument.sh input.c
+```
+
+The script retains every intermediate in a newly created `/tmp/mlir-instrument.*`
+directory and prints the path to `instrumented.mlir`. It uses the same tool and
+plugin overrides described above. A failed runtime assertion causes the
+instrumented program (and therefore the script) to exit unsuccessfully.
+
 ## What is where
 
 Two files hold the analysis; the rest is reusable scaffolding.

@@ -10,8 +10,11 @@
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "llvm/ADT/SmallVector.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Tools/Plugins/PassPlugin.h"
@@ -85,6 +88,31 @@ struct ExtAnalysisPass
     return "Determine the extended sign of integer values";
   }
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<cf::ControlFlowDialect>();
+  }
+
+  void add_asserts(ArrayRef<std::pair<Value, Operation *>> values,
+                   LLVM::ICmpPredicate predicate, int64_t expected,
+                   StringRef message) {
+    for (auto [value, definingOp] : values) {
+      OpBuilder builder(definingOp);
+      builder.setInsertionPointAfter(definingOp);
+      Location loc = definingOp->getLoc();
+      Value expectedValue =
+          LLVM::ConstantOp::create(builder, loc, value.getType(), expected);
+      Value condition =
+          LLVM::ICmpOp::create(builder, loc, predicate, value, expectedValue);
+
+      std::string location;
+      llvm::raw_string_ostream locationStream(location);
+      loc.print(locationStream);
+      locationStream.flush();
+      cf::AssertOp::create(builder, loc, condition,
+                           (message + " " + location).str());
+    }
+  }
+
   void runOnOperation() override {
     DataFlowConfig config;
     config.setInterprocedural(false);
@@ -123,7 +151,53 @@ struct ExtAnalysisPass
     };
 
     zero::printAnnotated(getOperation(), describe, llvm::errs());
-    markAllAnalysesPreserved();
+
+    SmallVector<std::pair<Value, Operation *>> zeroValues;
+    SmallVector<std::pair<Value, Operation *>> oneValues;
+    SmallVector<std::pair<Value, Operation *>> positiveValues;
+    SmallVector<std::pair<Value, Operation *>> negativeValues;
+    SmallVector<std::pair<Value, Operation *>> nonnegValues;
+    SmallVector<std::pair<Value, Operation *>> nonposValues;
+    getOperation().walk([&](Operation *op) {
+      for (Value result : op->getResults()) {
+        const auto *lattice = solver.lookupState<ext::ExtLattice>(result);
+        auto intType = dyn_cast<IntegerType>(result.getType());
+        if (lattice) {
+          auto kind = lattice->getValue().kind;
+          if (kind == ext::Kind::Zero && intType && intType.getWidth() > 1) {
+            zeroValues.emplace_back(result, op);
+          }
+          if (kind == ext::Kind::One && intType && intType.getWidth() > 1) {
+            oneValues.emplace_back(result, op);
+          }
+          if (kind == ext::Kind::Pos && intType && intType.getWidth() > 1) {
+            positiveValues.emplace_back(result, op);
+          }
+          if (kind == ext::Kind::Neg && intType && intType.getWidth() > 1) {
+            negativeValues.emplace_back(result, op);
+          }
+          if (kind == ext::Kind::NonPos && intType && intType.getWidth() > 1) {
+            nonposValues.emplace_back(result, op);
+          }
+          if (kind == ext::Kind::NonNeg && intType && intType.getWidth() > 1) {
+            nonnegValues.emplace_back(result, op);
+          }
+        }
+      }
+    });
+
+    add_asserts(zeroValues, LLVM::ICmpPredicate::eq, 0,
+                "ext-analysis expected zero at");
+    add_asserts(oneValues, LLVM::ICmpPredicate::eq, 1,
+                "ext-analysis expected one at");
+    add_asserts(positiveValues, LLVM::ICmpPredicate::sgt, 0,
+                "ext-analysis expected positive value at");
+    add_asserts(negativeValues, LLVM::ICmpPredicate::slt, 0,
+                "ext-analysis expected negative value at");
+    add_asserts(nonnegValues, LLVM::ICmpPredicate::sge, 0,
+                "ext-analysis expected nonnegative value at");
+    add_asserts(nonposValues, LLVM::ICmpPredicate::sle, 0,
+                "ext-analysis expected nonpositive value at");
   }
 };
 

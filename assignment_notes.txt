@@ -1,0 +1,6 @@
+write a short report to hand in. this should be a PDF. walk me through your experience here. show how you turn dataflow facts into assertions. show the MLIR file (something llvm-reduced would be fine) that triggers the bug. and, finally, describe the bug in your analysis -- here indicate if it was in your repo unintentionally, or if you had to insert a bug in order to have anything to find.
+
+I am walking through all the values that are marked as positive or negative after the majority of the analysis is completed. I then collect and add them all to the vectors, and then I go through each of those and add in the asserts. 
+
+Yay now I can start trying to trigger bugs! I will need to find stuff to run, but I assume I'm going to have problems with sign overflow, and myabe some other tricky things. fun.
+
