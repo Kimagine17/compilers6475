@@ -159,6 +159,9 @@ struct ExtAnalysisPass
     SmallVector<std::pair<Value, Operation *>> nonnegValues;
     SmallVector<std::pair<Value, Operation *>> nonposValues;
     getOperation().walk([&](Operation *op) {
+      if (!op->getParentOfType<LLVM::LLVMFuncOp>())
+        return;
+      //TODO KIM OPTIONAL: get mlir to make mini functions to test static values that are invalid
       for (Value result : op->getResults()) {
         const auto *lattice = solver.lookupState<ext::ExtLattice>(result);
         auto intType = dyn_cast<IntegerType>(result.getType());

@@ -1,6 +1,62 @@
-write a short report to hand in. this should be a PDF. walk me through your experience here. show how you turn dataflow facts into assertions. show the MLIR file (something llvm-reduced would be fine) that triggers the bug. and, finally, describe the bug in your analysis -- here indicate if it was in your repo unintentionally, or if you had to insert a bug in order to have anything to find.
+**How did I turn dataflow facts into assertions?**
+I added asserts for my dataflow facts by walking through the operations after analysis. I collected the different dataflow facts into vectors, then looped through them and added asserts. At first, I added asserts for all facts, but this triggered errors when statements were added in the global initializer, so I switched to adding asserts only inside functions.  
+/tmp/mlir-analysis.cWSZve/input.mlir:339:11: error: ops with side effects not allowed in global initializers
+getOperation().walk([&](Operation *op) {
+      if (!op->getParentOfType<LLVM::LLVMFuncOp>())
+        return;
+      for (Value result : op->getResults()) {
+        const auto *lattice = solver.lookupState<ext::ExtLattice>(result);
+        auto intType = dyn_cast<IntegerType>(result.getType());
+        if (lattice) {
+          auto kind = lattice->getValue().kind;
+          if (kind == ext::Kind::Zero && intType && intType.getWidth() > 1) {
+            zeroValues.emplace_back(result, op);
+          }
+          if (kind == ext::Kind::One && intType && intType.getWidth() > 1) {
+...
+          }
+        }
+      }
+    });
 
-I am walking through all the values that are marked as positive or negative after the majority of the analysis is completed. I then collect and add them all to the vectors, and then I go through each of those and add in the asserts. 
+    add_asserts(zeroValues, LLVM::ICmpPredicate::eq, 0,
+                "ext-analysis expected zero at");
+    add_asserts(oneValues, LLVM::ICmpPredicate::eq, 1,
+                "ext-analysis expected one at");
+...
+  }
 
-Yay now I can start trying to trigger bugs! I will need to find stuff to run, but I assume I'm going to have problems with sign overflow, and myabe some other tricky things. fun.
+  void add_asserts(ArrayRef<std::pair<Value, Operation *>> values,
+                   LLVM::ICmpPredicate predicate, int64_t expected,
+                   StringRef message) {
+    for (auto [value, definingOp] : values) {
+      OpBuilder builder(definingOp);
+      builder.setInsertionPointAfter(definingOp);
+      Location loc = definingOp->getLoc();
+      Value expectedValue =
+          LLVM::ConstantOp::create(builder, loc, value.getType(), expected);
+      Value condition =
+          LLVM::ICmpOp::create(builder, loc, predicate, value, expectedValue);
 
+      std::string location;
+      llvm::raw_string_ostream locationStream(location);
+      loc.print(locationStream);
+      locationStream.flush();
+      cf::AssertOp::create(builder, loc, condition,
+                           (message + " " + location).str());
+    }
+  }
+
+**Triggering Bugs**
+I used the built-in Copilot to make a driver that would run the test suite from SQLite with my analysis. Nothing triggered. I made a small C file that prints MAXINT + 1. This triggers an assert because my analysis does not account for integer overflow. (I thought about this while making the asserts, trying to figure out what weak points would exist). Here is the mlir file, and the .c, .ll, and .mlir code can be found in the unsound_bug folder in my repo. Run using ./run_instrument.sh unsound_bug/overflow.c
+module attributes {dlti.dl_spec = #dlti.dl_spec<!llvm.ptr<270> = dense<32> : vector<4xi64>, !llvm.ptr<271> = dense<32> : vector<4xi64>, !llvm.ptr<272> = dense<64> : vector<4xi64>, i64 = dense<64> : vector<2xi64>, i128 = dense<128> : vector<2xi64>, f80 = dense<128> : vector<2xi64>, !llvm.ptr = dense<64> : vector<4xi64>, i1 = dense<8> : vector<2xi64>, i8 = dense<8> : vector<2xi64>, i16 = dense<16> : vector<2xi64>, i32 = dense<32> : vector<2xi64>, f16 = dense<16> : vector<2xi64>, f64 = dense<64> : vector<2xi64>, f128 = dense<128> : vector<2xi64>, "dlti.endianness" = "little", "dlti.mangling_mode" = "e", "dlti.legal_int_widths" = array<i32: 8, 16, 32, 64>, "dlti.stack_alignment" = 128 : i64>, llvm.module_asm = [], llvm.target_triple = "x86_64-redhat-linux-gnu"} {
+  llvm.func @sqlite3_db_status64() -> i32 {
+    %0 = llvm.mlir.constant(1 : i32) : i32
+    %1 = llvm.add %0, %0 : i32
+    %2 = llvm.mlir.constant(0 : i32) : i32
+    %3 = llvm.icmp "sgt" %1, %2 : i32
+    cf.assert %3, "ext-analysis expected positive value at loc(\22reductions/reduced3.mlir\22:4:10)"
+    llvm.return %1 : i32
+  }
+}
+This bug was unintentionally already in my repo. 

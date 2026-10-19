@@ -101,10 +101,10 @@ the matching LLVM build's `compile_commands.json`; generated headers may
 require paths under both the source tree and build tree.
 
 The script uses the plugin in `build/ZeroAnalysis.so` (or `.dylib` on macOS).
-Set `LLVM_BIN` to the directory containing the matching `opt`, `mlir-opt`, and
-`mlir-translate` tools if they are not on `PATH`. Individual tool paths can be
-overridden with `CLANG` (C), `CLANGXX` (C++), `LLVM_OPT`, `MLIR_OPT`, and
-`MLIR_TRANSLATE`.
+Set `LLVM_BIN` to the directory containing the matching `opt`, `llc`,
+`mlir-opt`, and `mlir-translate` tools if they are not on `PATH`. Individual
+tool paths can be overridden with `CLANG` (C), `CLANGXX` (C++), `LLVM_OPT`,
+`LLVM_LLC`, `MLIR_OPT`, and `MLIR_TRANSLATE`.
 `ANALYSIS_PASSES` can override the default `ext-analysis` pass list (for
 example, set it to `zero-analysis,ext-analysis` to run both passes). `PLUGIN`
 or `BUILD_DIR` can select a different plugin location.
@@ -117,9 +117,25 @@ lower, compile, and run it:
 ```
 
 The script retains every intermediate in a newly created `/tmp/mlir-instrument.*`
-directory and prints the path to `instrumented.mlir`. It uses the same tool and
-plugin overrides described above. A failed runtime assertion causes the
-instrumented program (and therefore the script) to exit unsuccessfully.
+directory and prints the path to `instrumented.mlir`. It compiles LLVM IR to an
+object with the matching LLVM `llc`, then uses Clang to link and run it. This
+avoids asking an older Clang to parse LLVM IR emitted by a newer MLIR toolchain.
+It uses the same tool and plugin overrides described above. A failed runtime
+assertion causes the instrumented program (and therefore the script) to exit
+unsuccessfully.
+
+To run SQLite's Tcl test fixture linked against an instrumented amalgamation:
+
+```sh
+LLVM_BIN=/path/to/llvm-project/build/bin ./run_test_suite.sh
+```
+
+By default this runs SQLite's `test/veryquick.test` suite. Pass one or more
+test paths relative to `sqlite-source` (or absolute paths) to select tests, for
+example `./run_test_suite.sh test/expr.test test/cast.test`. The script uses
+the configured SQLite Makefile for its test fixture, replacing only the
+amalgamation source with the instrumented object. All intermediates and the
+test output are retained in `/tmp/mlir-sqlite-tests.*`.
 
 ## What is where
 
